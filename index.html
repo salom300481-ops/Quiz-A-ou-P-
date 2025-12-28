@@ -205,9 +205,30 @@ function nextQuestion() {
   if (currentQuestion < questions.length) {
     showQuestion();
   } else {
-    localStorage.setItem(`quiz_${coupleCode}_p${currentUser}`, JSON.stringify(answers));
+    if (SYNC_MODE) {
+  fetch(`${SERVER_URL}/submit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      code: coupleCode,
+      partner: currentUser === 1 ? "p1" : "p2",
+      answers: answers
+    })
+  })
+  .then(res => res.json())
+  .then(data => {
     document.getElementById("quiz").classList.add("hidden");
-    showResults();
+    if (data.status === "waiting") {
+      showWaiting();
+    } else {
+      loadResults();
+    }
+  });
+} else {
+  localStorage.setItem(`quiz_${coupleCode}_p${currentUser}`, JSON.stringify(answers));
+  document.getElementById("quiz").classList.add("hidden");
+  showResults();
+}
   }
 }
 
@@ -279,4 +300,5 @@ function resetQuiz() {
 
 </body>
 </html>
+
 
