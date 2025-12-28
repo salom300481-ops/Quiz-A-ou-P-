@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Quiz de Couple Synchronisé</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      padding: 20px;
+    }
+    .container {
+      max-width: 700px;
+      background: white;
+      margin: auto;
+      padding: 20px;
+      border-radius: 8px;
+    }
+    h1 { text-align: center; }
+    .question { margin-bottom: 15px; }
+    button {
+      margin-top: 20px;
+      padding: 10px;
+      font-size: 16px;
+      width: 100%;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 15px;
+    }
+    .hidden { display: none; }
+    .status {
+      background: #eef;
+      padding: 15px;
+      margin-top: 20px;
+      border-radius: 6px;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+<div class="container">
+
+  <h1>💑 Quiz de Couple</h1>
+
+  <!-- ÉTAPE 1 -->
+  <div id="stepSession">
+    <p>Code du couple :</p>
+    <input type="text" id="sessionCode" placeholder="Ex : ABC123">
+    <button onclick="startQuiz()">Commencer</button>
+  </div>
+
+  <!-- ÉTAPE 2 -->
+  <form id="quizForm" class="hidden">
+    <p>1 = Pas du tout d’accord • 5 = Tout à fait d’accord</p>
+    <div id="questions"></div>
+    <button type="button" onclick="submitQuiz()">Envoyer mes réponses</button>
+  </form>
+
+  <!-- ÉTAT / RÉSULTAT -->
+  <div id="statusBox" class="status hidden"></div>
+
+</div>
+
+<script>
+const API_URL = "https://quiz-couple-sync.onrender.com";
+
+const questions = [
+  "Nous communiquons facilement sur nos émotions.",
+  "La passion est encore très présente entre nous.",
+  "Nous avons des projets de vie communs.",
+  "Nous nous soutenons dans les moments difficiles.",
+  "Le désir physique est important dans notre relation.",
+  "Nous prenons des décisions importantes ensemble.",
+  "Nous nous surprenons encore mutuellement.",
+  "Nous fonctionnons bien comme une équipe.",
+  "Nous avons une forte complicité sexuelle.",
+  "Nous partageons des valeurs essentielles.",
+  "Nos moments d’intimité sont réguliers.",
+  "Nous savons faire des compromis.",
+  "L’attirance physique est toujours forte.",
+  "Nous gérons bien les responsabilités du quotidien.",
+  "Nous avons envie de nous retrouver seuls ensemble.",
+  "Nous nous faisons confiance.",
+  "La routine prend trop de place dans notre couple.",
+  "Nous nous sentons désirés par l’autre.",
+  "Nous avançons dans la même direction.",
+  "Notre relation est équilibrée entre amour et passion."
+];
+
+let sessionCode = "";
+
+function startQuiz() {
+  sessionCode = document.getElementById("sessionCode").value.trim();
+  if (!sessionCode) {
+    alert("Merci d’entrer un code.");
+    return;
+  }
+
+  document.getElementById("stepSession").classList.add("hidden");
+  document.getElementById("quizForm").classList.remove("hidden");
+
+  const qDiv = document.getElementById("questions");
+  questions.forEach((q, i) => {
+    qDiv.innerHTML += `
+      <div class="question">
+        <p>${i + 1}. ${q}</p>
+        ${[1,2,3,4,5].map(v =>
+          `<label><input type="radio" name="q${i}" value="${v}"> ${v}</label>`
+        ).join(" ")}
+      </div>
+    `;
+  });
+}
+
+async function submitQuiz() {
+  let answers = [];
+
+  for (let i = 0; i < questions.length; i++) {
+    const selected = document.querySelector(`input[name="q${i}"]:checked`);
+    if (!selected) {
+      alert("Merci de répondre à toutes les questions.");
+      return;
+    }
+    answers.push(Number(selected.value));
+  }
+
+  await fetch(`${API_URL}/submit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      session: sessionCode,
+      answers: answers
+    })
+  });
+
+  document.getElementById("quizForm").classList.add("hidden");
+  document.getElementById("statusBox").classList.remove("hidden");
+  document.getElementById("statusBox").innerText =
+    "⏳ En attente de l’autre personne…";
+
+  checkStatus();
+}
+
+async function checkStatus() {
+  const res = await fetch(`${API_URL}/status?session=${sessionCode}`);
+  const data = await res.json();
+
+  if (data.status === "waiting") {
+    setTimeout(checkStatus, 3000);
+    return;
+  }
+
+  // résultat final décidé par le backend
+  document.getElementById("statusBox").innerHTML = `
+    <strong>Résultat du couple</strong><br><br>
+    ${data.result || "Résultat reçu 🎉"}
+  `;
+}
+</script>
+
+</body>
+</html>
