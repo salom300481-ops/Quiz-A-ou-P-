@@ -1,0 +1,200 @@
+<script>
+/* ==========================
+   CONFIGURATION
+========================== */
+const SYNC_MODE = true;
+const SERVER_URL = "https://TON_URL_RENDER.onrender.com";
+
+/* ==========================
+   QUESTIONS
+========================== */
+const questions = [
+  "Quand vous êtes ensemble sans obligation ?",
+  "Votre communication quotidienne est surtout ?",
+  "Vos gestes de tendresse sont ?",
+  "Le désir entre vous est ?",
+  "Vos baisers sont le plus souvent ?",
+  "Vous vous sentez désiré·e par votre partenaire ?",
+  "Le corps de votre partenaire est pour vous ?",
+  "Parler de désir entre vous est ?",
+  "Avez-vous déjà retenu un désir par peur ou habitude ?",
+  "Ressentez-vous encore du désir spontané ?",
+  "Qui prend le plus souvent l’initiative du désir ?",
+  "Avez-vous parfois envie de votre partenaire sans oser le montrer ?",
+  "Avez-vous l’impression que le désir est réciproque ?",
+  "Y a-t-il des envies que vous n’avez jamais osé exprimer ?",
+  "Votre intimité est plutôt ?",
+  "La tension entre vous est ?",
+  "Aujourd’hui, votre couple vous donne surtout envie de ?",
+  "Votre relation mérite davantage de…"
+];
+
+const choices = [
+  ["Gérer le quotidien", "Partager un moment", "Se rapprocher"],
+  ["Fonctionnelle", "Affectueuse", "Chargée de sous-entendus"],
+  ["Rares", "Présents", "Spontanés"],
+  ["Prévisible", "Calme", "Joueur"],
+  ["Rapides", "Tendres", "Intenses"],
+  ["Rarement", "Parfois", "Clairement"],
+  ["Familier", "Réconfortant", "Désirable"],
+  ["Difficile", "Possible", "Excitant"],
+  ["Souvent", "Parfois", "Rarement"],
+  ["Rarement", "Parfois", "Souvent"],
+  ["Toujours la même personne", "Selon les moments", "Les deux"],
+  ["Oui", "Parfois", "Non"],
+  ["Pas vraiment", "À peu près", "Oui, clairement"],
+  ["Beaucoup", "Quelques-unes", "Très peu"],
+  ["Routinière", "Confortable", "Vivante"],
+  ["Faible", "Variable", "Forte"],
+  ["Sécurité", "Complicité", "Désir"],
+  ["Stabilité", "Temps à deux", "Passion"]
+];
+
+/* ==========================
+   VARIABLES
+========================== */
+let coupleCode = "";
+let currentUser = null;
+let currentQuestion = 0;
+let answers = {};
+
+/* ==========================
+   DÉMARRAGE
+========================== */
+function validateCode() {
+  coupleCode = document.getElementById("privateCode").value.trim();
+  if (!coupleCode) return alert("Entre un code.");
+  document.getElementById("stepCode").classList.add("hidden");
+  document.getElementById("stepUser").classList.remove("hidden");
+}
+
+function startQuiz(user) {
+  currentUser = user;
+  currentQuestion = 0;
+  answers = {};
+  document.getElementById("stepUser").classList.add("hidden");
+  document.getElementById("quiz").classList.remove("hidden");
+  showQuestion();
+}
+
+/* ==========================
+   QUESTIONS
+========================== */
+function showQuestion() {
+  document.getElementById("questionBox").innerHTML = `
+    <div class="progress">Question ${currentQuestion + 1}/${questions.length}</div>
+    <h3>${questions[currentQuestion]}</h3>
+    ${["A","B","C"].map((l,i)=>`
+      <label>
+        <input type="radio" name="answer" value="${l}">
+        ${choices[currentQuestion][i]}
+      </label>
+    `).join("")}
+  `;
+}
+
+function nextQuestion() {
+  const selected = document.querySelector("input[name='answer']:checked");
+  if (!selected) return alert("Choisis une réponse.");
+  answers[currentQuestion] = selected.value;
+  currentQuestion++;
+
+  if (currentQuestion < questions.length) {
+    showQuestion();
+  } else {
+    sendAnswers();
+  }
+}
+
+/* ==========================
+   SYNCHRONISATION
+========================== */
+function sendAnswers() {
+  if (!SYNC_MODE) return;
+
+  fetch(`${SERVER_URL}/submit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      code: coupleCode,
+      partner: currentUser === 1 ? "p1" : "p2",
+      answers: answers
+    })
+  })
+  .then(res => res.json())
+  .then(data => {
+    document.getElementById("quiz").classList.add("hidden");
+    if (data.status === "waiting") {
+      showWaiting();
+    } else {
+      loadResults();
+    }
+  });
+}
+
+function showWaiting() {
+  const results = document.getElementById("results");
+  results.innerHTML = `
+    <div class="card">
+      <h4>⏳ En attente</h4>
+      <p>L’autre partenaire n’a pas encore terminé le questionnaire.</p>
+    </div>
+  `;
+  results.classList.remove("hidden");
+}
+
+function loadResults() {
+  fetch(`${SERVER_URL}/results/${coupleCode}`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === "waiting") {
+        showWaiting();
+      } else {
+        showAnalysis(data.p1, data.p2);
+      }
+    });
+}
+
+/* ==========================
+   ANALYSE
+========================== */
+function profile(a) {
+  let s = {A:0, B:0, C:0};
+  Object.values(a).forEach(x => s[x]++);
+  if (s.C > s.A && s.C > s.B) return "🔥 Plutôt amants";
+  if (s.A > s.B && s.A > s.C) return "🧩 Plutôt partenaires";
+  return "⚖️ Équilibre partenaires / amants";
+}
+
+function showAnalysis(p1, p2) {
+  const gaps = Object.keys(p1).filter(i => p1[i] !== p2[i]);
+  const results = document.getElementById("results");
+
+  results.innerHTML = `
+    <div class="card"><h4>👤 Partenaire 1</h4><p>${profile(p1)}</p></div>
+    <div class="card"><h4>👤 Partenaire 2</h4><p>${profile(p2)}</p></div>
+
+    <div class="card">
+      <h4>🧠 Lecture du couple</h4>
+      <p>
+        ${
+          gaps.length > 6
+          ? "Vos réponses montrent un décalage important dans l’expression du désir et des attentes."
+          : "Vos réponses révèlent une bonne base commune, avec quelques différences à explorer."
+        }
+      </p>
+    </div>
+
+    <div class="card">
+      <h4>🔥 Conseil</h4>
+      <p>
+        Le désir se nourrit de présence, de curiosité et de moments choisis.
+        Protégez des espaces où vous n’êtes ni efficaces ni organisés,
+        mais simplement disponibles l’un pour l’autre.
+      </p>
+    </div>
+  `;
+
+  results.classList.remove("hidden");
+}
+</script>
